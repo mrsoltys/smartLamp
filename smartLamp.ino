@@ -1,13 +1,33 @@
-// This #include statement was automatically added by the Particle IDE.
+//Include Approprate Libraries
 #include "OpenWeatherMap.h"
+#include <neopixel.h>
+#ifdef __AVR__
+  #include <avr/power.h>
+#endif
+
+//Set to manual for full control
 SYSTEM_MODE(MANUAL);
 
+int buttonPin=D4;
+
 //////////////////////////////
-//    RGB LED OUTPUT PINS   //
+//    RGB LED VALUES        //
 //////////////////////////////
-int rPin=0;
-int gPin=1;
-int bPin=3;
+int rVal=0;
+int gVal=0;
+int bVal=0;
+
+int lampSetting=0;
+int buttonState=0;
+
+//////////////////////////////
+//    VARS FOR NEOPIXELS    //
+//////////////////////////////
+// Which pin on the Arduino is connected to the NeoPixels?
+#define PIN            3
+// How many NeoPixels are attached to the Arduino?
+#define NUMPIXELS      12
+Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN);
 
 //////////////////////////////
 // OpenWeatherMap Variables //
@@ -28,42 +48,50 @@ float bedTime=12+9.5;
 float tempTime;
 
 int maxTemp, curTemp;
+unsigned int forecastDays=1;
+
+void ISR(){
+    digitalWrite(7,HIGH);
+    delay(100);
+    digitalWrite(7,LOW);
+}
 
 void setup() {
-    RGB.control(true);
-    //RGB.brightness(64);
+    pinMode(D2,INPUT);
+    //attachInterrupt(D2,ISR,FALLING);
+    pinMode(7,OUTPUT);
 
-    //Set RGB pins to be outputs
-    pinMode(rPin,OUTPUT);
-    pinMode(gPin,OUTPUT);
-    pinMode(bPin,OUTPUT);
-    dispTemp(-99);
+    // Set Up Particle
+    RGB.control(true);
+    RGB.brightness(0);
+    Time.zone(-7);
+    Particle.syncTime();
+
+    //Set Up LEDs
+    pixels.begin(); // This initializes the NeoPixel library.
+    dispTemp(-99); //-99 is off. 
 
     // OpenWeatherMap configuration: set the units to either IMPERIAL or METRIC
     // Which will set temperature values to either farenheit or celsius
     weather.setUnits(IMPERIAL); // Set temperature units to farenheit0
-    Time.zone(-7);
-    
     getWeather();
-    //Particle.syncTime();
-    
     //set timezone -7 for MTN time
     //-8 or 6 for DST?
-    
     
     //For Debug
     Serial.begin(9600);
 }
 
 void getWeather(){
-    Serial.print("Getting Weather: Turning on WiFi... ");
+    char publishString[4];
+    //Serial.print("Getting Weather: Turning on WiFi... ");
     WiFi.on();
     WiFi.connect();
     if (waitForWifi(30000)) { 
-        Serial.print("Yes. Connecting to Cloud...");
+        //Serial.print("Sucess. Connecting to Cloud...");
         Particle.connect();
         if (waitForCloud(true, 20000)){
-            Serial.println("Yes.");
+            //Serial.println("Success.");
             int errCount = 0;
             //Check the weather and breath between current and high temp
             //keep checking until successful. 
@@ -72,17 +100,33 @@ void getWeather(){
                 errCount++;
                }
             curTemp=weather.temperature();
+            if(errCount<100){
+                sprintf(publishString,"%d",curTemp);
+                Particle.publish("Current Temperature",publishString);
+            }
+            else {
+                Particle.publish("Error Getting Current Temperature");
+            }
             //Serial.print("Current Temp: ");
             //Serial.print(curTemp);
-            while(!weather.daily(LATITUDE, LONGITUDE, 2)  && errCount<100){
+            while(!weather.daily(LATITUDE, LONGITUDE, forecastDays)  && errCount<100){
                 delay(500);
                 errCount++;
+                Serial.print(errCount);Serial.print("\t");
             }
             maxTemp=weather.maxTemperature();
+            if(errCount<100){
+                sprintf(publishString,"%d",curTemp);
+                Particle.publish("Max Temperature",publishString);
+            }
+            else {
+                Particle.publish("Error Getting Max Temperature");
+            }
             //Serial.print("  High: ");
             //Serial.println(maxTemp);
             curTime=(float)Time.hour()+(float)Time.minute()/60;
             tempTime=curTime;
+
         }
         Particle.disconnect();
     }
@@ -92,91 +136,131 @@ void getWeather(){
 
 void loop() {
     //Get the weather forecast
-    curTime=(float)Time.hour()+(float)Time.minute()/60;
+    //curTime=(float)Time.hour()+(float)Time.minute()/60;
     Serial.print("Current: ");Serial.println(curTime);
     Serial.print("Alarm: ");Serial.println(almTime);
     Serial.print("Temp: ");Serial.print(tempTime);
     Serial.print(" current: ");Serial.print(curTemp);
     Serial.print(" max: ");Serial.println(maxTemp);
 
-    if(curTime<almTime || curTime>bedTime){
-        dispTemp(-99);
-        return;
-    }
-    else if(curTime>=almTime+almLength/60){
-        if ((curTime-tempTime)>.25 || (curTime-tempTime)<0)
-           getWeather();
+    // if(curTime<almTime || curTime>bedTime){
+    //     dispTemp(-99);
+    //     return;
+    // }
+    // else if(curTime>=almTime+almLength/60){
+    if ((curTime-tempTime)>.25 || (curTime-tempTime)<0) {
+       getWeather();
+   }
         
-        dispTemp(curTemp);
-        for (int i=curTemp;i<=maxTemp;i++){
-            dispTemp(i);
-            delay(100);
-        }
-        delay(2000);
-        dispTemp(maxTemp);
-        for (int i=maxTemp;i>=curTemp;i--){
-            dispTemp(i);
-            delay(100);
-        }
-        delay(2000);
-    }
-    else{
-        sunRise();
-    }
+    //    dispTemp(curTemp);
+    //     for (int i=curTemp;i<=maxTemp;i++){
+    //         dispTemp(i);
+    //         delay(100);
+    //     }
+    //     delay(2000);
+    //     dispTemp(maxTemp);
+    //     for (int i=maxTemp;i>=curTemp;i--){
+    //         dispTemp(i);
+    //         delay(100);
+    //     }
+    //     delay(2000);
+    // }
+    // else{
+    //     sunRise();
+    // }
     //API limit is 12,000 requests per minute :)
-    
+   
+    buttonState=digitalRead(2);
+    if (buttonState==LOW){
+        lampSetting++;
+        if(lampSetting==0)
+            dispTemp(-99);
+        else if(lampSetting==1)
+            dispTemp(curTemp);
+        else if(lampSetting==2)
+            dispTemp(maxTemp);
+        else if(lampSetting==3)
+            lampMode();
+        else {
+            dispTemp(-99);
+            lampSetting=0;
+        }
+        delay(100);
+    }
+}
+
+void fadeLEDs(){
+    for(int i=0;i<NUMPIXELS;i++){
+        // pixels.Color takes RGB values, from 0,0,0 up to 255,255,255
+        pixels.setPixelColor(i, pixels.Color(rVal,gVal,bVal)); // Moderately bright green color.
+        pixels.show(); // This sends the updated pixel color to the hardware.
+        delay(50); // Delay for a period of time (in milliseconds).
+  }
+}
+
+void lampMode(){
+    rVal=255;
+    gVal=255;
+    bVal=225;
+    fadeLEDs();
 }
 
 void dispTemp(int temp){
     // If I send this function -99, it means turn off the LEDs
     if (temp<=-99) {
-        analogWrite(rPin, 0);
-        analogWrite(gPin, 0);
-        analogWrite(bPin, 0);
+       // pixels.setPixelColor(i, pixels.Color(0,150,0)); // Moderately bright green color.
+        rVal=0;
+        gVal=0;
+        bVal=0;
+        fadeLEDs();
         return;
     }
     
     // constrain temp between 10 and 100 F
     temp=constrain(temp, 0, 100);
     
+    //If Temperature is greater than 66 map:
+    // 66 R=0;G=255;
+    // 100 R=255;G=0;
     if (temp>66){
-        analogWrite(rPin, map(temp,66,100,0,255));
-        analogWrite(gPin, map(temp,66,100,255,0));
-        analogWrite(bPin,0);
+        rVal=map(temp,66,100,0,255);
+        gVal=map(temp,66,100,255,0);
+        bVal=0;
     }
     else if (temp>33){
-        analogWrite(rPin, 0);
-        analogWrite(gPin, map(temp,33,66,0,255));
-        analogWrite(bPin, map(temp,33,66,255,0));
+        rVal=0;
+        gVal=map(temp,33,66,0,255);
+        bVal=map(temp,33,66,255,0);
     }
     else{
-        analogWrite(rPin, map(temp,0,33,255,0));
-        analogWrite(gPin,0);
-        analogWrite(bPin,255);
+        rVal=map(temp,0,33,255,0);
+        gVal=0;
+        bVal=255;
     }
+    fadeLEDs();
 }
 
 void sunRise(){
     // loosley based on charts from http://www.tannerhelland.com/4435/convert-temperature-rgb-algorithm-code/
     int delayT=(float)almLength*60*1000/999;
     
-    analogWrite(rPin,0);
-    analogWrite(gPin,0);
-    analogWrite(bPin,0);
+    rVal=0;
+    gVal=0;
+    bVal=0;
     
-    for (int i=0;i<333;i++){
-        analogWrite(rPin,127*(float)i/333);
-        delay(delayT);
-    }
-    for (int i=0;i<333;i++){
-        analogWrite(rPin,127+127*(float)i/333);
-        analogWrite(bPin,127*(float)i/333);
-        delay(delayT);
-    }
-    for (int i=0;i<333;i++){
-        analogWrite(gPin,127*(float)i/333);
-        delay(delayT);
-    }
+    // for (int i=0;i<333;i++){
+    //     analogWrite(rPin,127*(float)i/333);
+    //     delay(delayT);
+    // }
+    // for (int i=0;i<333;i++){
+    //     analogWrite(rPin,127+127*(float)i/333);
+    //     analogWrite(bPin,127*(float)i/333);
+    //     delay(delayT);
+    // }
+    // for (int i=0;i<333;i++){
+    //     analogWrite(gPin,127*(float)i/333);
+    //     delay(delayT);
+    // }
 }
 
 /**
