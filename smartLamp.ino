@@ -1,3 +1,27 @@
+/*
+smartLamp.ino
+Dr. Mike Soltys <soltys@colorado.edu>
+University of Colorado at Boulder
+Engineering+ Program
+
+Code for bedside lamp that tells the current and forecasted temperature. 
+Uses two sets of 12 LED neopixel rings attached to pin D3 for light.
+    -https://www.adafruit.com/products/1643
+
+Some code modifed from:
+    -https://github.com/spark/warsting
+    -https://github.com/sparkfun/Inventors_Kit_For_Photon_Experiments/tree/master/11-OLEDApps
+
+Uses OpenWeatherMap API. Please get your own API key from
+    -http://home.openweathermap.org/users/sign_up
+
+Development environment specifics:
+    Particle Build environment (https://www.particle.io/build)
+    Particle Photon
+    
+Distributed as-is; no warranty is given. 
+*/
+
 //Include Approprate Libraries
 #include "OpenWeatherMap.h"
 #include <neopixel.h>
@@ -7,8 +31,6 @@
 
 //Set to manual for full control
 SYSTEM_MODE(MANUAL);
-
-int buttonPin=D4;
 
 //////////////////////////////
 //    RGB LED VALUES        //
@@ -40,45 +62,42 @@ const float LATITUDE = 39.9986714; // Weather forecast location's latitude
 const float LONGITUDE = -105.1054522; // Weather forecast location's longitude
 // Create an OpenWeather object, giving it our API key as the parameter:
 OpenWeather weather(OPENWEATHER_API_KEY);
+#define forecastDays    1;
+int maxTemp, curTemp;
+//TCPClient client;
 
+//////////////////////////////
+//      Time Variables      //
+//////////////////////////////
 float curTime;
 float almTime=6.0; 
 float almLength=1; 
 float bedTime=12+9.5;
 float tempTime;
 
-int maxTemp, curTemp;
-unsigned int forecastDays=1;
-
-void ISR(){
-    digitalWrite(7,HIGH);
-    delay(100);
-    digitalWrite(7,LOW);
-}
 
 void setup() {
+    // Button for testing (on pin D2)
     pinMode(D2,INPUT);
-    //attachInterrupt(D2,ISR,FALLING);
-    pinMode(7,OUTPUT);
+
+    //pinMode(7,OUTPUT);        // Can use LED attached to pin 7 for debugging
 
     // Set Up Particle
-    RGB.control(true);
-    RGB.brightness(0);
-    Time.zone(-7);
-    Particle.syncTime();
+    RGB.control(true);          // control onboard RGB
+    RGB.brightness(0);          // turn off onboard RGB
+    Time.zone(-7);              // set timezone to MST. Note: Unsure how to handle DST
+    Particle.syncTime();        // sync time (Not neccissary)
 
     //Set Up LEDs
-    pixels.begin(); // This initializes the NeoPixel library.
-    dispTemp(-99); //-99 is off. 
+    pixels.begin();             // This initializes the NeoPixel library.
+    dispTemp(-99);              //-99 is off. 
 
     // OpenWeatherMap configuration: set the units to either IMPERIAL or METRIC
     // Which will set temperature values to either farenheit or celsius
     weather.setUnits(IMPERIAL); // Set temperature units to farenheit0
     getWeather();
-    //set timezone -7 for MTN time
-    //-8 or 6 for DST?
-    
-    //For Debug
+
+    //For Debugging
     Serial.begin(9600);
 }
 
@@ -93,6 +112,7 @@ void getWeather(){
         if (waitForCloud(true, 20000)){
             //Serial.println("Success.");
             int errCount = 0;
+
 /*            while(!weather.daily(LATITUDE, LONGITUDE, forecastDays)  && errCount<10){
                 delay(1000);
                 errCount++;
@@ -111,15 +131,15 @@ void getWeather(){
                 Particle.publish("Error Getting Current Temperature");
             }*/
             weather.connectionTest(LATITUDE, LONGITUDE);
-TCPClient client;
-client.connect("www.google.com", 80);
-if (client.connected())
+TCPClient client2;
+client2.connect("www.google.com", 80);
+if (client2.connected())
 {
-    IPAddress clientIP = client.remoteIP();
+    IPAddress clientIP = client2.remoteIP();
     Serial.println(clientIP);
     // IPAddress equals whatever www.google.com resolves to
 }
-client.stop();
+client2.stop();
 
             while(!weather.current(LATITUDE, LONGITUDE) && errCount<10) {
                 delay(1000);
@@ -128,14 +148,14 @@ client.stop();
                }
             curTemp=weather.temperature();
 
-client.connect("www.google.com", 80);
-if (client.connected())
+client2.connect("www.google.com", 80);
+if (client2.connected())
 {
-    IPAddress clientIP = client.remoteIP();
+    IPAddress clientIP = client2.remoteIP();
     Serial.println(clientIP);
     // IPAddress equals whatever www.google.com resolves to
 }
-client.stop();
+client2.stop();
 
             delay(1500);
             errCount=0;
