@@ -1,4 +1,7 @@
 /*	OpenWeatherMap.h
+  Mike Soltys <soltys@colorado.edu>
+
+  Modified from code by:
 	Jim Lindblom <jim@sparkfun.com>
 	August 31, 2015
 	
@@ -347,9 +350,12 @@ public:
 
   t_forecast forecast;
 
+  int connectionTest(float lat, float lon);
 private:
   String _apiKey;
   t_forecast_units _units;
+
+
 
   int currentForecast(String location);
   int hourlyForecast(String location, unsigned int count);

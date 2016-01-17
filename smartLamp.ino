@@ -93,40 +93,73 @@ void getWeather(){
         if (waitForCloud(true, 20000)){
             //Serial.println("Success.");
             int errCount = 0;
+/*            while(!weather.daily(LATITUDE, LONGITUDE, forecastDays)  && errCount<10){
+                delay(1000);
+                errCount++;
+                Serial.print(errCount);Serial.print("\t");
+            }
+            maxTemp=weather.maxTemperature();*/
+
             //Check the weather and breath between current and high temp
             //keep checking until successful. 
-            while(!weather.current(LATITUDE, LONGITUDE) && errCount<100) {
-                 delay(500);
-                errCount++;
-               }
-            curTemp=weather.temperature();
-            if(errCount<100){
+
+            /*if(errCount<10){
                 sprintf(publishString,"%d",curTemp);
                 Particle.publish("Current Temperature",publishString);
             }
             else {
                 Particle.publish("Error Getting Current Temperature");
-            }
-            //Serial.print("Current Temp: ");
-            //Serial.print(curTemp);
-            while(!weather.daily(LATITUDE, LONGITUDE, forecastDays)  && errCount<100){
-                delay(500);
+            }*/
+            weather.connectionTest(LATITUDE, LONGITUDE);
+TCPClient client;
+client.connect("www.google.com", 80);
+if (client.connected())
+{
+    IPAddress clientIP = client.remoteIP();
+    Serial.println(clientIP);
+    // IPAddress equals whatever www.google.com resolves to
+}
+client.stop();
+
+            while(!weather.current(LATITUDE, LONGITUDE) && errCount<10) {
+                delay(1000);
                 errCount++;
                 Serial.print(errCount);Serial.print("\t");
-            }
-            maxTemp=weather.maxTemperature();
-            if(errCount<100){
+               }
+            curTemp=weather.temperature();
+
+client.connect("www.google.com", 80);
+if (client.connected())
+{
+    IPAddress clientIP = client.remoteIP();
+    Serial.println(clientIP);
+    // IPAddress equals whatever www.google.com resolves to
+}
+client.stop();
+
+            delay(1500);
+            errCount=0;
+            while(!weather.current(LATITUDE, LONGITUDE) && errCount<10) {
+                delay(1000);
+                errCount++;
+                Serial.print(errCount);Serial.print("\t");
+               }
+            curTemp=weather.temperature();
+
+           /* if(errCount<10){
                 sprintf(publishString,"%d",curTemp);
                 Particle.publish("Max Temperature",publishString);
             }
             else {
                 Particle.publish("Error Getting Max Temperature");
-            }
+            }*/
+            //Serial.print("Current Temp: ");
+            //Serial.print(curTemp);
+    
             //Serial.print("  High: ");
             //Serial.println(maxTemp);
             curTime=(float)Time.hour()+(float)Time.minute()/60;
             tempTime=curTime;
-
         }
         Particle.disconnect();
     }
@@ -136,12 +169,12 @@ void getWeather(){
 
 void loop() {
     //Get the weather forecast
-    //curTime=(float)Time.hour()+(float)Time.minute()/60;
-    Serial.print("Current: ");Serial.println(curTime);
-    Serial.print("Alarm: ");Serial.println(almTime);
-    Serial.print("Temp: ");Serial.print(tempTime);
-    Serial.print(" current: ");Serial.print(curTemp);
-    Serial.print(" max: ");Serial.println(maxTemp);
+    curTime=(float)Time.hour()+(float)Time.minute()/60;
+    //Serial.print("Current: ");Serial.println(curTime);
+    //Serial.print("Alarm: ");Serial.println(almTime);
+    //Serial.print("Temp: ");Serial.print(tempTime);
+    //Serial.print(" current: ");Serial.print(curTemp);
+    //Serial.print(" max: ");Serial.println(maxTemp);
 
     // if(curTime<almTime || curTime>bedTime){
     //     dispTemp(-99);

@@ -149,15 +149,32 @@ String OpenWeather::conditionName()
 {
   return forecast.symbol.name;
 }
-
-int OpenWeather::currentForecast(String location)
+int OpenWeather::connectionTest(float lat, float lon){
+TCPClient client;
+client.connect("www.google.com", 80);
+if (client.connected())
 {
-  /////////////////////////////////////////
-  // Connect to client and send HTTP GET //
-  /////////////////////////////////////////
-  TCPClient client;
-  if (client.connect(weatherServer, 80))
+    IPAddress clientIP = client.remoteIP();
+    Serial.println(clientIP);
+    // IPAddress equals whatever www.google.com resolves to
+}
+// SYNTAX
+client.stop();
+client.connect("www.google.com", 80);
+if (client.connected())
+{
+    IPAddress clientIP = client.remoteIP();
+    Serial.println(clientIP);
+    // IPAddress equals whatever www.google.com resolves to
+}
+// SYNTAX
+client.stop();
+
+
+String location="lat=" + String(lat) + "&lon=" + String(lon);
+if (client.connect(weatherServer, 80))
   {
+    Serial.print("First Connection Successful");
       client.print("GET /data/2.5/weather?");
       client.print(location);
       client.print("&mode=xml");
@@ -167,13 +184,101 @@ int OpenWeather::currentForecast(String location)
         client.print("&units=imperial"); // Change imperial to metric for celsius (delete this line for kelvin)
       else if (_units == METRIC)
         client.print("&units=metric");
-      client.println(" HTTP/1.0");
+      client.println(" HTTP/1.1");
       client.println("Host: " + weatherServer);
       client.println("Content-length: 0");
       client.println();
+      int timeout = 1000;
+      while ((!client.available()) && (timeout-- > 0))
+        delay(1);
+      if (timeout <= 0) {
+        Serial.println("Server Timeout");
+        return 0;
+      }
+      while (client.available())
+      {
+      char c = client.read();
+      Serial.print(c);
+      }
+      Serial.println();
+    }
+    client.stop();
+    if (client.connect(weatherServer, 80)){
+      Serial.println("TRYING SECOND ATTEMPT");
+      client.print("GET /data/2.5/weather?");
+      client.print(location);
+      client.print("&mode=xml");
+      if (_apiKey != NULL)
+        client.print("&APPID=" + _apiKey);
+      if (_units == IMPERIAL)
+        client.print("&units=imperial"); // Change imperial to metric for celsius (delete this line for kelvin)
+      else if (_units == METRIC)
+        client.print("&units=metric");
+      client.println(" HTTP/1.1");
+      client.println("Host: " + weatherServer);
+      client.println("Content-length: 0");
+      client.println();
+      int timeout=1000;
+      while ((!client.available()) && (timeout-- > 0))
+        delay(1);
+      if (timeout <= 0) {
+        Serial.println("Server Timeout");
+        return 0;
+      }
+      while (client.available())
+      {
+      char c = client.read();
+      Serial.print(c);
+      }
+      Serial.println();
+  }
+  else
+    Serial.print("First Connection Unsuccessful");
+
+    client.stop();
+
+if (client.connect(weatherServer, 80))
+  {
+    Serial.print("2nd Connection Successful");
+  }
+  else
+    Serial.print("2nd Connection Unsuccessful");
+
+    client.stop(); 
+
+    return 0;
+
+}
+
+int OpenWeather::currentForecast(String location)
+{
+  /////////////////////////////////////////
+  // Connect to client and send HTTP GET //
+  /////////////////////////////////////////
+  TCPClient client;
+  if (client.connect(weatherServer, 80))
+  {
+      client.flush();
+      Serial.println("Sending GET request to server");
+      client.print("GET /data/2.5/weather?");
+      client.print(location);
+      client.print("&mode=xml");
+      if (_apiKey != NULL)
+        client.print("&APPID=" + _apiKey);
+      if (_units == IMPERIAL)
+        client.print("&units=imperial"); // Change imperial to metric for celsius (delete this line for kelvin)
+      else if (_units == METRIC)
+        client.print("&units=metric");
+      client.println(" HTTP/1.1");
+      client.println("Host: " + weatherServer);
+      client.println("Content-length: 0");
+      client.println("Connection: close");
+      client.println();
+      Serial.println("Finished GET request to server");
   }
   else
   {
+      Serial.println("Error Connecting to Server");
       return 0;
   }
 
@@ -184,18 +289,16 @@ int OpenWeather::currentForecast(String location)
   int timeout = 1000;
   while ((!client.available()) && (timeout-- > 0))
     delay(1);
-  if (timeout <= 0)
+  if (timeout <= 0) {
+    Serial.println("Server Timeout");
     return 0;
+  }
   while (client.available())
   {
     char c = client.read();
     rsp += c;
   }
 
-  ////////////////
-  // Disconnect //
-  ////////////////
-  client.stop();
   Serial.println("Response: ");
   Serial.println(rsp);
 
@@ -225,6 +328,11 @@ int OpenWeather::currentForecast(String location)
   forecast.day = "" + parseXML(&rsp, "lastupdate", "value");
   forecast.type = CURRENT_FORECAST;
 
+  ////////////////
+  // Disconnect //
+  ////////////////
+  client.flush();
+  client.stop();
   //printDebug();
 
   return 1;
@@ -318,7 +426,7 @@ int OpenWeather::hourlyForecast(String location, unsigned int count)
   forecast.clouds.unit = "" + parseXML(&rsp, "clouds", "unit");
   forecast.type = HOURLY_FORECAST;
 
-  //printDebug();
+  printDebug();
 
   return 1;
 }
@@ -341,26 +449,28 @@ int OpenWeather::dailyForecast(String location, unsigned int count)
         client.print("&units=imperial"); // Change imperial to metric for celsius (delete this line for kelvin)
       else if (_units == METRIC)
         client.print("&units=metric");
-      client.println(" HTTP/1.0");
+      client.println(" HTTP/1.1");
       client.println("Host: " + weatherServer);
       client.println("Content-length: 0");
       client.println();
   }
   else
   {
+      Serial.println("Error Connecting to Server");
       return 0;
   }
-
   ///////////////////////////////////////
   // Wait for Response, Store in Array //
   ///////////////////////////////////////
   String rsp;
   unsigned int forecastCount = 0;
-  int timeout = 1000;
+  int timeout = 1500;
   while ((!client.available()) && (timeout-- > 0))
     delay(1);
-  if (timeout <= 0)
-    return 0;
+  if (timeout <= 0){
+    Serial.println("Server Timeout");
+    return 0; 
+  }
   while (client.available())
   {
     char c = client.read();
@@ -377,12 +487,9 @@ int OpenWeather::dailyForecast(String location, unsigned int count)
         break;
       }
     }
+    delay(1);
   }
 
-  ////////////////
-  // Disconnect //
-  ////////////////
-  client.stop();
   Serial.println("Response: ");
   Serial.println(rsp);
 
@@ -412,6 +519,12 @@ int OpenWeather::dailyForecast(String location, unsigned int count)
   forecast.type = DAILY_FORECAST;
 
   //printDebug();
+
+  ////////////////
+  // Disconnect //
+  ////////////////
+  client.flush();
+  client.stop();
 
   return 1;
 }
