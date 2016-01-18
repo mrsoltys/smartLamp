@@ -293,8 +293,7 @@ int OpenWeather::currentForecast(String location)
     Serial.println("Server Timeout");
     return 0;
   }
-  while (client.available())
-  {
+  while (client.available()){
     char c = client.read();
     rsp += c;
   }

@@ -58,13 +58,15 @@ Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN);
 //                   http://home.openweathermap.org/users/sign_up
 const String OPENWEATHER_API_KEY = "ab5f3051ea5ef01d114b33dadee1b99d"; 
 // Forecast location declaration (currently set for Niwot, CO - SparkFun HQ!):
-const float LATITUDE = 39.9986714; // Weather forecast location's latitude
-const float LONGITUDE = -105.1054522; // Weather forecast location's longitude
+const float LATITUDE = 39.999; // Weather forecast location's latitude
+const float LONGITUDE = -105.105; // Weather forecast location's longitude
+const String location = "lat=" + String(LATITUDE) + "&lon=" + String(LONGITUDE);
+const String weatherServer = "api.openweathermap.org";
 // Create an OpenWeather object, giving it our API key as the parameter:
 OpenWeather weather(OPENWEATHER_API_KEY);
 #define forecastDays    1;
 int maxTemp, curTemp;
-//TCPClient client;
+TCPClient client;
 
 //////////////////////////////
 //      Time Variables      //
@@ -75,11 +77,9 @@ float almLength=1;
 float bedTime=12+9.5;
 float tempTime;
 
-
 void setup() {
     // Button for testing (on pin D2)
     pinMode(D2,INPUT);
-
     //pinMode(7,OUTPUT);        // Can use LED attached to pin 7 for debugging
 
     // Set Up Particle
@@ -101,71 +101,72 @@ void setup() {
     Serial.begin(9600);
 }
 
+int getCurrentForecast(){
+    String rsp;
+    int timeout = 1500;
+
+    if (client.connect(weatherServer, 80)) {
+      client.print("GET /data/2.5/weather?");
+      client.print(location);
+      client.print("&mode=xml");
+      client.print("&APPID=" + OPENWEATHER_API_KEY);
+      client.print("&units=imperial"); // Change imperial to metric for celsius (delete this line for kelvin)
+      client.println(" HTTP/1.1");
+      client.println("Host: " + weatherServer);
+      client.println("Content-length: 0");
+      client.println();
+    }
+    else {
+      Serial.println("Error Connecting to Server");
+      return 0;
+    }
+      
+    while ((!client.available()) && (timeout-- > 0))
+        delay(1);
+    if (timeout <= 0) {
+        Serial.println("Server Timeout");
+        return 0;
+    }
+
+    while (client.available()) {
+        char c = client.read();
+        rsp += c;
+    }
+    
+    curTemp=parseXML(&rsp, "temperature", "value").toFloat();
+
+    // For Debugging...
+    Serial.println("Response: ");
+    Serial.println(rsp);
+
+    Serial.println(curTemp);
+    client.stop();
+    return 1;
+}
+
 void getWeather(){
     char publishString[4];
-    //Serial.print("Getting Weather: Turning on WiFi... ");
     WiFi.on();
     WiFi.connect();
-    if (waitForWifi(30000)) { 
-        //Serial.print("Sucess. Connecting to Cloud...");
+    if (waitForWifi(30000)) {
         Particle.connect();
         if (waitForCloud(true, 20000)){
-            //Serial.println("Success.");
+            Serial.println("Testing new code");
             int errCount = 0;
-
-/*            while(!weather.daily(LATITUDE, LONGITUDE, forecastDays)  && errCount<10){
+            while(!getCurrentForecast() && errCount++ < 10){
                 delay(1000);
-                errCount++;
-                Serial.print(errCount);Serial.print("\t");
             }
-            maxTemp=weather.maxTemperature();*/
-
-            //Check the weather and breath between current and high temp
-            //keep checking until successful. 
-
-            /*if(errCount<10){
+            if(errCount<10){
                 sprintf(publishString,"%d",curTemp);
                 Particle.publish("Current Temperature",publishString);
             }
             else {
                 Particle.publish("Error Getting Current Temperature");
-            }*/
-            weather.connectionTest(LATITUDE, LONGITUDE);
-TCPClient client2;
-client2.connect("www.google.com", 80);
-if (client2.connected())
-{
-    IPAddress clientIP = client2.remoteIP();
-    Serial.println(clientIP);
-    // IPAddress equals whatever www.google.com resolves to
-}
-client2.stop();
+            }
 
-            while(!weather.current(LATITUDE, LONGITUDE) && errCount<10) {
-                delay(1000);
-                errCount++;
-                Serial.print(errCount);Serial.print("\t");
-               }
-            curTemp=weather.temperature();
+            Serial.println("Testing Old Code");
 
-client2.connect("www.google.com", 80);
-if (client2.connected())
-{
-    IPAddress clientIP = client2.remoteIP();
-    Serial.println(clientIP);
-    // IPAddress equals whatever www.google.com resolves to
-}
-client2.stop();
-
-            delay(1500);
-            errCount=0;
-            while(!weather.current(LATITUDE, LONGITUDE) && errCount<10) {
-                delay(1000);
-                errCount++;
-                Serial.print(errCount);Serial.print("\t");
-               }
-            curTemp=weather.temperature();
-
+            
            /* if(errCount<10){
                 sprintf(publishString,"%d",curTemp);
                 Particle.publish("Max Temperature",publishString);
@@ -244,11 +245,9 @@ void loop() {
 
 void fadeLEDs(){
     for(int i=0;i<NUMPIXELS;i++){
-        // pixels.Color takes RGB values, from 0,0,0 up to 255,255,255
-        pixels.setPixelColor(i, pixels.Color(rVal,gVal,bVal)); // Moderately bright green color.
+        pixels.setPixelColor(i, pixels.Color(rVal,gVal,bVal)); 
         pixels.show(); // This sends the updated pixel color to the hardware.
-        delay(50); // Delay for a period of time (in milliseconds).
-  }
+    }
 }
 
 void lampMode(){
@@ -260,7 +259,7 @@ void lampMode(){
 
 void dispTemp(int temp){
     // If I send this function -99, it means turn off the LEDs
-    if (temp<=-99) {
+    if (temp<=-99){
        // pixels.setPixelColor(i, pixels.Color(0,150,0)); // Moderately bright green color.
         rVal=0;
         gVal=0;
@@ -269,12 +268,10 @@ void dispTemp(int temp){
         return;
     }
     
-    // constrain temp between 10 and 100 F
+    // constrain temp between 0 and 100 F
     temp=constrain(temp, 0, 100);
     
-    //If Temperature is greater than 66 map:
-    // 66 R=0;G=255;
-    // 100 R=255;G=0;
+    // Map Temp to Correct Temp.
     if (temp>66){
         rVal=map(temp,66,100,0,255);
         gVal=map(temp,66,100,255,0);
@@ -347,4 +344,36 @@ bool waitForCloud(bool state, unsigned timeout) {
         delay(100);
     }
     return Particle.connected()==state;
+}
+
+String parseXML(String * search, String tag, String attribute) {
+    int tagStart = tagIndex(search, tag, 1);
+    int tagEnd = tagIndex(search, tag, 0);
+    if (tagStart >= 0){
+        int attributeStart = search->indexOf(attribute, tagStart);
+        if ((attributeStart >= 0) && (attributeStart < tagEnd)){ // Make sure we don't get value of another key
+            attributeStart = search->indexOf("\"", attributeStart);
+            if (attributeStart >= 0){
+                int attributeEnd = search->indexOf("\"", attributeStart + 1);
+                if (attributeEnd >= 0){
+                    return search->substring(attributeStart + 1, attributeEnd);
+                }
+            }
+        }
+    }
+    return NULL;
+}
+
+int tagIndex(String * xml, String tag, bool start){
+    String fullTag = "<";
+    if (start){
+        fullTag += tag;
+        fullTag += ' '; // Look for a space after the tag name
+    }
+    else{
+        fullTag += '/';
+        fullTag += tag;
+        fullTag += '>';
+    }
+    return xml->indexOf(fullTag);
 }
