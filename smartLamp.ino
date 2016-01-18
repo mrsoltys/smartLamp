@@ -23,7 +23,6 @@ Distributed as-is; no warranty is given.
 */
 
 //Include Approprate Libraries
-#include "OpenWeatherMap.h"
 #include <neopixel.h>
 #ifdef __AVR__
   #include <avr/power.h>
@@ -62,8 +61,6 @@ const float LATITUDE = 39.999; // Weather forecast location's latitude
 const float LONGITUDE = -105.105; // Weather forecast location's longitude
 const String location = "lat=" + String(LATITUDE) + "&lon=" + String(LONGITUDE);
 const String weatherServer = "api.openweathermap.org";
-// Create an OpenWeather object, giving it our API key as the parameter:
-OpenWeather weather(OPENWEATHER_API_KEY);
 #define forecastDays    1;
 float maxTemp, curTemp;
 TCPClient client;
@@ -71,11 +68,7 @@ TCPClient client;
 //////////////////////////////
 //      Time Variables      //
 //////////////////////////////
-float curTime;
-float almTime=6.0; 
-float almLength=1; 
-float bedTime=12+9.5;
-float tempTime;
+float curTime, tempTime;
 
 void setup() {
     // Button for testing (on pin D2)
@@ -92,13 +85,35 @@ void setup() {
     pixels.begin();             // This initializes the NeoPixel library.
     dispTemp(-99);              //-99 is off. 
 
-    // OpenWeatherMap configuration: set the units to either IMPERIAL or METRIC
-    // Which will set temperature values to either farenheit or celsius
-    weather.setUnits(IMPERIAL); // Set temperature units to farenheit0
-    getWeather();
-
     //For Debugging
     Serial.begin(9600);
+}
+
+void loop() {
+    //Get the weather forecast
+    curTime=(float)Time.hour()+(float)Time.minute()/60;
+    // currently checking every 9 minutes
+    if ((curTime-tempTime)>.15 || (curTime-tempTime)<0) {
+       getWeather();
+   }
+   
+    buttonState=digitalRead(2);
+    if (buttonState==LOW){
+        lampSetting++;
+        if(lampSetting==0)
+            dispTemp(-99);
+        else if(lampSetting==1)
+            dispTemp(curTemp);
+        else if(lampSetting==2)
+            dispTemp(maxTemp);
+        else if(lampSetting==3)
+            lampMode();
+        else {
+            dispTemp(-99);
+            lampSetting=0;
+        }
+        delay(500);
+    }
 }
 
 int getCurrentMaxTemp(){
@@ -169,6 +184,7 @@ int getCurrentMaxTemp(){
 }
 
 void getWeather(){
+    Serial.print("curTime: ");Serial.println(curTime);
     char publishString[4];
     WiFi.on();
     WiFi.connect();
@@ -199,62 +215,6 @@ void getWeather(){
     }
     WiFi.disconnect();
     WiFi.off();
-    Serial.println("Debug3");
-}
-
-void loop() {
-    //Get the weather forecast
-    curTime=(float)Time.hour()+(float)Time.minute()/60;
-    //Serial.print("Current: ");Serial.println(curTime);
-    //Serial.print("Alarm: ");Serial.println(almTime);
-    //Serial.print("Temp: ");Serial.print(tempTime);
-    //Serial.print(" current: ");Serial.print(curTemp);
-    //Serial.print(" max: ");Serial.println(maxTemp);
-
-    // if(curTime<almTime || curTime>bedTime){
-    //     dispTemp(-99);
-    //     return;
-    // }
-    // else if(curTime>=almTime+almLength/60){
-    if ((curTime-tempTime)>.25 || (curTime-tempTime)<0) {
-       getWeather();
-   }
-        
-    //    dispTemp(curTemp);
-    //     for (int i=curTemp;i<=maxTemp;i++){
-    //         dispTemp(i);
-    //         delay(100);
-    //     }
-    //     delay(2000);
-    //     dispTemp(maxTemp);
-    //     for (int i=maxTemp;i>=curTemp;i--){
-    //         dispTemp(i);
-    //         delay(100);
-    //     }
-    //     delay(2000);
-    // }
-    // else{
-    //     sunRise();
-    // }
-    //API limit is 12,000 requests per minute :)
-   
-    buttonState=digitalRead(2);
-    if (buttonState==LOW){
-        lampSetting++;
-        if(lampSetting==0)
-            dispTemp(-99);
-        else if(lampSetting==1)
-            dispTemp(curTemp);
-        else if(lampSetting==2)
-            dispTemp(maxTemp);
-        else if(lampSetting==3)
-            lampMode();
-        else {
-            dispTemp(-99);
-            lampSetting=0;
-        }
-        delay(100);
-    }
 }
 
 void fadeLEDs(){
@@ -266,8 +226,8 @@ void fadeLEDs(){
 
 void lampMode(){
     rVal=255;
-    gVal=255;
-    bVal=225;
+    gVal=240;
+    bVal=220;
     fadeLEDs();
 }
 
@@ -302,29 +262,6 @@ void dispTemp(int temp){
         bVal=255;
     }
     fadeLEDs();
-}
-
-void sunRise(){
-    // loosley based on charts from http://www.tannerhelland.com/4435/convert-temperature-rgb-algorithm-code/
-    int delayT=(float)almLength*60*1000/999;
-    
-    rVal=0;
-    gVal=0;
-    bVal=0;
-    
-    // for (int i=0;i<333;i++){
-    //     analogWrite(rPin,127*(float)i/333);
-    //     delay(delayT);
-    // }
-    // for (int i=0;i<333;i++){
-    //     analogWrite(rPin,127+127*(float)i/333);
-    //     analogWrite(bPin,127*(float)i/333);
-    //     delay(delayT);
-    // }
-    // for (int i=0;i<333;i++){
-    //     analogWrite(gPin,127*(float)i/333);
-    //     delay(delayT);
-    // }
 }
 
 /**
