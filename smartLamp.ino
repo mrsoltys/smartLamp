@@ -65,7 +65,7 @@ const String weatherServer = "api.openweathermap.org";
 // Create an OpenWeather object, giving it our API key as the parameter:
 OpenWeather weather(OPENWEATHER_API_KEY);
 #define forecastDays    1;
-int maxTemp, curTemp;
+float maxTemp, curTemp;
 TCPClient client;
 
 //////////////////////////////
@@ -101,46 +101,70 @@ void setup() {
     Serial.begin(9600);
 }
 
-int getCurrentForecast(){
+int getCurrentMaxTemp(){
+    client.flush();
     String rsp;
-    int timeout = 1500;
+    
+    client.print("GET /data/2.5/weather?");
+    client.print(location);
+    client.print("&mode=xml");
+    client.print("&APPID=" + OPENWEATHER_API_KEY);
+    client.print("&units=imperial"); // Change imperial to metric for celsius (delete this line for kelvin)
+    client.println(" HTTP/1.1");
+    client.println("Host: " + weatherServer);
+    client.println("Content-length: 0");
+    client.println();
 
-    if (client.connect(weatherServer, 80)) {
-      client.print("GET /data/2.5/weather?");
-      client.print(location);
-      client.print("&mode=xml");
-      client.print("&APPID=" + OPENWEATHER_API_KEY);
-      client.print("&units=imperial"); // Change imperial to metric for celsius (delete this line for kelvin)
-      client.println(" HTTP/1.1");
-      client.println("Host: " + weatherServer);
-      client.println("Content-length: 0");
-      client.println();
-    }
-    else {
-      Serial.println("Error Connecting to Server");
-      return 0;
-    }
-      
-    while ((!client.available()) && (timeout-- > 0))
-        delay(1);
-    if (timeout <= 0) {
+    unsigned long timeout=millis(); 
+    while ((!client.available()) && (millis()-timeout < 5000)) {}
+    if (!client.available()) {
         Serial.println("Server Timeout");
         return 0;
     }
-
     while (client.available()) {
         char c = client.read();
         rsp += c;
     }
-    
     curTemp=parseXML(&rsp, "temperature", "value").toFloat();
-
+    Serial.print("curTemp: ");Serial.println(curTemp);
     // For Debugging...
-    Serial.println("Response: ");
-    Serial.println(rsp);
+    //Serial.println("Response: ");
+    //Serial.println(rsp);
 
-    Serial.println(curTemp);
-    client.stop();
+    rsp=NULL;
+    client.print("GET /data/2.5/forecast/daily?");
+    client.print(location);
+    client.print("&cnt=" + String(0));
+    client.print("&mode=xml");
+    client.print("&APPID=" + OPENWEATHER_API_KEY);
+    client.print("&units=imperial"); // Change imperial to metric for celsius (delete this line for kelvin)
+    client.println(" HTTP/1.1");
+    client.println("Host: " + weatherServer);
+    client.println("Content-length: 0");
+    client.println();
+  
+    ///////////////////////////////////////
+    // Wait for Response, Store in Array //
+    ///////////////////////////////////////
+    timeout=millis(); 
+    while ((!client.available()) && (millis()-timeout < 5000)) {}
+    if (!client.available()) {
+        Serial.println("Server Timeout");
+        return 0; 
+    }
+    while (client.available()) {
+        char c = client.read();
+        rsp += c;
+    }
+
+    //Serial.println("Response: ");
+    //Serial.println(rsp);
+  
+    maxTemp=parseXML(&rsp, "temperature", "max").toFloat();
+    Serial.print("maxTemp: ");Serial.println(maxTemp);
+    curTime=(float)Time.hour()+(float)Time.minute()/60;
+    tempTime=curTime;
+    Serial.print("tempTime: ");Serial.println(tempTime);
     return 1;
 }
 
@@ -151,41 +175,31 @@ void getWeather(){
     if (waitForWifi(30000)) {
         Particle.connect();
         if (waitForCloud(true, 20000)){
-            Serial.println("Testing new code");
-            int errCount = 0;
-            while(!getCurrentForecast() && errCount++ < 10){
-                delay(1000);
-            }
-            if(errCount<10){
-                sprintf(publishString,"%d",curTemp);
-                Particle.publish("Current Temperature",publishString);
-            }
-            else {
-                Particle.publish("Error Getting Current Temperature");
-            }
-
-            Serial.println("Testing Old Code");
-
-            
-           /* if(errCount<10){
-                sprintf(publishString,"%d",curTemp);
-                Particle.publish("Max Temperature",publishString);
+            if (client.connect(weatherServer, 80)) {
+                int errCount = 0;
+                while(!getCurrentMaxTemp() && errCount++ < 10){
+                    delay(1000);
+                }
+                // if(errCount<10){
+                //     sprintf(publishString,"%d",curTemp);
+                //     Particle.publish("Current Temperature",publishString);
+                //     Serial.println("Debug2a");
+                // }
+                // else {
+                //     Particle.publish("Error Getting Current Temperature");
+                //     Serial.println("Debug2b");
+                // }
             }
             else {
-                Particle.publish("Error Getting Max Temperature");
-            }*/
-            //Serial.print("Current Temp: ");
-            //Serial.print(curTemp);
-    
-            //Serial.print("  High: ");
-            //Serial.println(maxTemp);
-            curTime=(float)Time.hour()+(float)Time.minute()/60;
-            tempTime=curTime;
+                Serial.println("Error Connecting to Server");
+            }
+            client.stop();
         }
         Particle.disconnect();
     }
     WiFi.disconnect();
     WiFi.off();
+    Serial.println("Debug3");
 }
 
 void loop() {
