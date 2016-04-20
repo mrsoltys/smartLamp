@@ -155,25 +155,31 @@ int getCurrentMaxTemp(){
         return 0; 
     }
     timeout=millis();
-    while (client.available() || (millis()-timeout < 500)) {
+    while (client.available() || (millis()-timeout < 100)) {
         if(client.available()) {
             rsp += (char)client.read();
+            timeout=millis();
         }
     }
 
     //Serial.println("Response: ");
-    Serial.println(rsp);
-  
+//    Serial.println(rsp);
+//    if(curTime>1020){
+    //NOTE: For some reason, the first forecast is garbage so we need to throw it away.
+        rsp=rsp.substring(rsp.indexOf("</time>")); 
+//    }
+//    Serial.println(rsp);
+
     maxTemp=parseXML(&rsp, "temperature", "max").toInt();
-    Serial.print("maxTemp: ");Serial.println(maxTemp);
+//    Serial.print("maxTemp: ");Serial.println(maxTemp);
     curTime=(int)(Time.hour()*60)+(int)Time.minute();
     tempTime=curTime;
-    Serial.print("tempTime: ");Serial.println(tempTime);
+//    Serial.print("tempTime: ");Serial.println(tempTime);
     return 1;
 }
 
 void getWeather(){
-    Serial.print("curTime: ");Serial.println(curTime);
+    //Serial.print("curTime: ");Serial.println(curTime);
     char publishString[4];
     WiFi.on();
     WiFi.connect();
