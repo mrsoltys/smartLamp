@@ -34,41 +34,27 @@ SYSTEM_MODE(MANUAL);
 //////////////////////////////
 //    RGB LED VALUES        //
 //////////////////////////////
-int rVal=0;
-int gVal=0;
-int bVal=0;
+byte rVal=0;
+byte gVal=0;
+byte bVal=0;
 
-int lampSetting=0;
-int buttonState=0;
+byte lampSetting=0;
 
 //////////////////////////////
 //    VARS FOR NEOPIXELS    //
 //////////////////////////////
-// Which pin on the Arduino is connected to the NeoPixels?
-#define PIN            3
 // How many NeoPixels are attached to the Arduino?
 #define NUMPIXELS      12
-Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN);
+Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, 3);
 
-//////////////////////////////
-// OpenWeatherMap Variables //
-//////////////////////////////
-// OpenWeathermap API key. Get one (for free) by signing up here:
-//                   http://home.openweathermap.org/users/sign_up
-const String OPENWEATHER_API_KEY = "ab5f3051ea5ef01d114b33dadee1b99d"; 
-// Forecast location declaration (currently set for Niwot, CO - SparkFun HQ!):
-const float LATITUDE = 39.999; // Weather forecast location's latitude
-const float LONGITUDE = -105.105; // Weather forecast location's longitude
-const String location = "lat=" + String(LATITUDE) + "&lon=" + String(LONGITUDE);
-const String weatherServer = "api.openweathermap.org";
-#define forecastDays    1;
-float maxTemp, curTemp;
 TCPClient client;
 
 //////////////////////////////
 //      Time Variables      //
 //////////////////////////////
-float curTime, tempTime;
+int curTime;
+int tempTime= 32767;
+int maxTemp, curTemp;
 
 void setup() {
     // Button for testing (on pin D2)
@@ -91,12 +77,13 @@ void setup() {
 
 void loop() {
     //Get the weather forecast
-    curTime=(float)Time.hour()+(float)Time.minute()/60;
+    curTime=(int)(Time.hour()*60)+(int)Time.minute();
     // currently checking every 9 minutes
-    if ((curTime-tempTime)>.15 || (curTime-tempTime)<0) {
+    if ((curTime-tempTime)>9 || (curTime-tempTime)<0) {
        getWeather();
    }
    
+    byte buttonState=0;
     buttonState=digitalRead(2);
     if (buttonState==LOW){
         lampSetting++;
@@ -121,40 +108,40 @@ int getCurrentMaxTemp(){
     String rsp;
     
     client.print("GET /data/2.5/weather?");
-    client.print(location);
+    client.print("lat=39.999&lon=-105.105");
     client.print("&mode=xml");
-    client.print("&APPID=" + OPENWEATHER_API_KEY);
+    client.print("&APPID=ab5f3051ea5ef01d114b33dadee1b99d");
     client.print("&units=imperial"); // Change imperial to metric for celsius (delete this line for kelvin)
     client.println(" HTTP/1.1");
-    client.println("Host: " + weatherServer);
+    client.println("Host: api.openweathermap.org");
     client.println("Content-length: 0");
     client.println();
 
     unsigned long timeout=millis(); 
     while ((!client.available()) && (millis()-timeout < 5000)) {}
     if (!client.available()) {
-        Serial.println("Server Timeout");
+        //Serial.println("Server Timeout");
         return 0;
     }
     while (client.available()) {
         char c = client.read();
         rsp += c;
     }
-    curTemp=parseXML(&rsp, "temperature", "value").toFloat();
-    Serial.print("curTemp: ");Serial.println(curTemp);
+    curTemp=parseXML(&rsp, "temperature", "value").toInt();
+    //Serial.print("curTemp: ");Serial.println(curTemp);
     // For Debugging...
     //Serial.println("Response: ");
     //Serial.println(rsp);
 
     rsp=NULL;
     client.print("GET /data/2.5/forecast/daily?");
-    client.print(location);
+    client.print("lat=39.999&lon=-105.105");
     client.print("&cnt=" + String(0));
     client.print("&mode=xml");
-    client.print("&APPID=" + OPENWEATHER_API_KEY);
+    client.print("&APPID=ab5f3051ea5ef01d114b33dadee1b99d");
     client.print("&units=imperial"); // Change imperial to metric for celsius (delete this line for kelvin)
     client.println(" HTTP/1.1");
-    client.println("Host: " + weatherServer);
+    client.println("Host: api.openweathermap.org");
     client.println("Content-length: 0");
     client.println();
   
@@ -164,20 +151,22 @@ int getCurrentMaxTemp(){
     timeout=millis(); 
     while ((!client.available()) && (millis()-timeout < 5000)) {}
     if (!client.available()) {
-        Serial.println("Server Timeout");
+        //Serial.println("Server Timeout");
         return 0; 
     }
-    while (client.available()) {
-        char c = client.read();
-        rsp += c;
+    timeout=millis();
+    while (client.available() || (millis()-timeout < 500)) {
+        if(client.available()) {
+            rsp += (char)client.read();
+        }
     }
 
     //Serial.println("Response: ");
-    //Serial.println(rsp);
+    Serial.println(rsp);
   
-    maxTemp=parseXML(&rsp, "temperature", "max").toFloat();
+    maxTemp=parseXML(&rsp, "temperature", "max").toInt();
     Serial.print("maxTemp: ");Serial.println(maxTemp);
-    curTime=(float)Time.hour()+(float)Time.minute()/60;
+    curTime=(int)(Time.hour()*60)+(int)Time.minute();
     tempTime=curTime;
     Serial.print("tempTime: ");Serial.println(tempTime);
     return 1;
@@ -191,23 +180,14 @@ void getWeather(){
     if (waitForWifi(30000)) {
         Particle.connect();
         if (waitForCloud(true, 20000)){
-            if (client.connect(weatherServer, 80)) {
+            if (client.connect("api.openweathermap.org", 80)) {
                 int errCount = 0;
                 while(!getCurrentMaxTemp() && errCount++ < 10){
                     delay(1000);
                 }
-                // if(errCount<10){
-                //     sprintf(publishString,"%d",curTemp);
-                //     Particle.publish("Current Temperature",publishString);
-                //     Serial.println("Debug2a");
-                // }
-                // else {
-                //     Particle.publish("Error Getting Current Temperature");
-                //     Serial.println("Debug2b");
-                // }
             }
             else {
-                Serial.println("Error Connecting to Server");
+                //Serial.println("Error Connecting to Server");
             }
             client.stop();
         }
@@ -227,7 +207,7 @@ void fadeLEDs(){
 void lampMode(){
     rVal=255;
     gVal=240;
-    bVal=220;
+    bVal=215;
     fadeLEDs();
 }
 
