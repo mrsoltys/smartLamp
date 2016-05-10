@@ -123,12 +123,13 @@ int getCurrentMaxTemp(){
         //Serial.println("Server Timeout");
         return 0;
     }
-    while (client.available()) {
-        char c = client.read();
-        rsp += c;
+    while (client.available() || (millis()-timeout < 500)){
+        if(client.available()) {
+            rsp += (char)client.read();
+            timeout=millis();
+        }
     }
     curTemp=parseXML(&rsp, "temperature", "value").toInt();
-    //Serial.print("curTemp: ");Serial.println(curTemp);
     // For Debugging...
     //Serial.println("Response: ");
     //Serial.println(rsp);
@@ -136,7 +137,7 @@ int getCurrentMaxTemp(){
     rsp=NULL;
     client.print("GET /data/2.5/forecast/daily?");
     client.print("lat=39.999&lon=-105.105");
-    client.print("&cnt=" + String(0));
+    client.print("&cnt=1"); //Note: can change if you want farther forecasts
     client.print("&mode=xml");
     client.print("&APPID=ab5f3051ea5ef01d114b33dadee1b99d");
     client.print("&units=imperial"); // Change imperial to metric for celsius (delete this line for kelvin)
@@ -155,7 +156,7 @@ int getCurrentMaxTemp(){
         return 0; 
     }
     timeout=millis();
-    while (client.available() || (millis()-timeout < 100)) {
+    while (client.available() || (millis()-timeout < 500)) {
         if(client.available()) {
             rsp += (char)client.read();
             timeout=millis();
@@ -166,15 +167,16 @@ int getCurrentMaxTemp(){
 //    Serial.println(rsp);
 //    if(curTime>1020){
     //NOTE: For some reason, the first forecast is garbage so we need to throw it away.
-        rsp=rsp.substring(rsp.indexOf("</time>")); 
+ //       rsp=rsp.substring(rsp.indexOf("</time>")); 
 //    }
-//    Serial.println(rsp);
+    Serial.println(rsp);
 
     maxTemp=parseXML(&rsp, "temperature", "max").toInt();
-//    Serial.print("maxTemp: ");Serial.println(maxTemp);
     curTime=(int)(Time.hour()*60)+(int)Time.minute();
     tempTime=curTime;
-//    Serial.print("tempTime: ");Serial.println(tempTime);
+    Serial.print("tempTime: ");Serial.println(tempTime);
+    Serial.print("curTemp: ");Serial.println(curTemp);
+    Serial.print("maxTemp: ");Serial.println(maxTemp);
     return 1;
 }
 
