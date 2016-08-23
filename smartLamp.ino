@@ -87,20 +87,19 @@ void loop() {
     buttonState=digitalRead(2);
     if (buttonState==LOW){
         lampSetting++;
-        if(lampSetting==0)
-            dispTemp(-99);
-        else if(lampSetting==1)
-            dispTemp(curTemp);
-        else if(lampSetting==2)
-            dispTemp(maxTemp);
-        else if(lampSetting==3)
-            lampMode();
-        else {
-            dispTemp(-99);
+        if (lampSetting>3)
             lampSetting=0;
-        }
         delay(500);
     }
+    
+    if(lampSetting==1)
+        dispTemp(curTemp);
+    else if(lampSetting==2)
+        dispTemp(maxTemp);
+    else if(lampSetting==3)
+        lampMode();
+    else 
+        dispTemp(-99);
 }
 
 int getCurrentMaxTemp(){
