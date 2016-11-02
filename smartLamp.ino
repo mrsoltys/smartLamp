@@ -59,6 +59,7 @@ int maxTemp, curTemp;
 void setup() {
     // Button for testing (on pin D2)
     pinMode(D2,INPUT);
+    attachInterrupt(D2, lampState, RISING);
     //pinMode(7,OUTPUT);        // Can use LED attached to pin 7 for debugging
 
     // Set Up Particle
@@ -74,24 +75,14 @@ void setup() {
     //For Debugging
     Serial.begin(9600);
 }
-
-void loop() {
-    //Get the weather forecast
-    curTime=(int)(Time.hour()*60)+(int)Time.minute();
-    // currently checking every 9 minutes
-    if ((curTime-tempTime)>9 || (curTime-tempTime)<0) {
-       getWeather();
-   }
-   
-    byte buttonState=0;
-    buttonState=digitalRead(2);
-    if (buttonState==LOW){
+void lampState(){
         lampSetting++;
         if (lampSetting>3)
             lampSetting=0;
         delay(500);
     }
-    
+
+void loop() {
     if(lampSetting==1)
         dispTemp(curTemp);
     else if(lampSetting==2)
@@ -100,6 +91,13 @@ void loop() {
         lampMode();
     else 
         dispTemp(-99);
+
+    //Get the weather forecast
+    curTime=(int)(Time.hour()*60)+(int)Time.minute();
+    // currently checking every 9 minutes
+    if ((curTime-tempTime)>9 || (curTime-tempTime)<0) {
+       getWeather();
+   }
 }
 
 int getCurrentMaxTemp(){
