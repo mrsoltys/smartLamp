@@ -56,10 +56,12 @@ int curTime;
 int tempTime= 32767;
 int maxTemp, curTemp;
 
+
+
 void setup() {
     // Button for testing (on pin D2)
     pinMode(D2,INPUT);
-    attachInterrupt(D2, lampState, RISING);
+    attachInterrupt(D2, debounceInterrupt, RISING,0);
     //pinMode(7,OUTPUT);        // Can use LED attached to pin 7 for debugging
 
     // Set Up Particle
@@ -75,12 +77,22 @@ void setup() {
     //For Debugging
     Serial.begin(9600);
 }
+
+long debouncing_time = 100; //Debouncing Time in Milliseconds
+volatile unsigned long last_micros;
+void debounceInterrupt() {
+    if((long)(micros() - last_micros) >= debouncing_time * 1000) {
+        lampState();
+        last_micros = micros();
+  }
+}
+
 void lampState(){
-        lampSetting++;
-        if (lampSetting>3)
-            lampSetting=0;
-        delay(100);
-    }
+    lampSetting++;
+    if (lampSetting>3)
+        lampSetting=0;
+}
+
 
 void loop() {
     if(lampSetting==1)
