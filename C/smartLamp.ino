@@ -56,8 +56,6 @@ int curTime;
 int tempTime= 32767;
 int maxTemp, curTemp;
 
-
-
 void setup() {
     // Button for testing (on pin D2)
     pinMode(D2,INPUT);
@@ -78,7 +76,7 @@ void setup() {
     Serial.begin(9600);
 }
 
-long debouncing_time = 100; //Debouncing Time in Milliseconds
+long debouncing_time = 300; //Debouncing Time in Milliseconds
 volatile unsigned long last_micros;
 void debounceInterrupt() {
     if((long)(micros() - last_micros) >= debouncing_time * 1000) {
@@ -91,10 +89,10 @@ void lampState(){
     lampSetting++;
     if (lampSetting>3)
         lampSetting=0;
+    dispLamp();
 }
 
-
-void loop() {
+void dispLamp(){
     if(lampSetting==1)
         dispTemp(curTemp);
     else if(lampSetting==2)
@@ -103,12 +101,18 @@ void loop() {
         lampMode();
     else 
         dispTemp(-99);
+}
+
+
+void loop() {
+    dispLamp();
 
     //Get the weather forecast
     curTime=(int)(Time.hour()*60)+(int)Time.minute();
-    // currently checking every 9 minutes
-    if ((curTime-tempTime)>9 || (curTime-tempTime)<0) {
+    // currently checking every 5 minutes
+    if ((curTime-tempTime)>5 || (curTime-tempTime)<0) {
        getWeather();
+       last_micros = micros();
    }
 }
 
@@ -191,7 +195,7 @@ int getCurrentMaxTemp(){
 
 void getWeather(){
     //Serial.print("curTime: ");Serial.println(curTime);
-    char publishString[4];
+    //char publishString[4];
     WiFi.on();
     WiFi.connect();
     if (waitForWifi(30000)) {

@@ -79,11 +79,12 @@ void lampState(){
         lampSetting++;
         if (lampSetting>3)
             lampSetting=0;
+        dispLampState();
         delay(100);
     }
 
-void loop() {
-    if(lampSetting==1)
+void dispLampState(){
+        if(lampSetting==1)
         dispTemp(curTemp);
     else if(lampSetting==2)
         dispTemp(maxTemp);
@@ -91,6 +92,10 @@ void loop() {
         lampMode();
     else 
         dispTemp(-99);
+}
+
+void loop() {
+    dispLampState()
 
     //Get the weather forecast
     curTime=(int)(Time.hour()*60)+(int)Time.minute();
