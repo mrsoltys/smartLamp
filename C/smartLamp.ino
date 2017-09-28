@@ -74,6 +74,11 @@ void setup() {
 
     //For Debugging
     Serial.begin(9600);
+    Time.zone(-6);
+    if(Time.isDST())
+        Time.beginDST()
+    else
+        Time.endDST()
 }
 
 long debouncing_time = 300; //Debouncing Time in Milliseconds
@@ -247,18 +252,40 @@ void dispTemp(int temp){
     temp=constrain(temp, 0, 100);
     
     // Map Temp to Correct Temp.
-    if (temp>66){
-        rVal=map(temp,66,100,0,255);
-        gVal=map(temp,66,100,255,0);
+    //100 - Red        255,   0,   0
+    //    - Orange
+    //80  - Yellow     255, 255,   0
+    //60  - Green        0, 255,   0
+    //40                 0, 255, 255
+    //20  - Blue         0,   0, 255
+    //    - Indigo
+    //0   - Violet     255,   0, 255
+    // 80-100 Red Full, Green 255-0
+    if (temp>=80){
+        rVal=255;
+        gVal=map(temp,80,100,255,0);
         bVal=0;
     }
-    else if (temp>33){
+    // 60-80 Green Full, Red 0-255
+    else if (temp>=60){
+        rVal=map(temp,60,80,0,255);
+        gVal=255;
+        bVal=0;
+    }
+    // 40-60 Green Full, Blue 255-0
+    else if (temp>=40){
         rVal=0;
-        gVal=map(temp,33,66,0,255);
-        bVal=map(temp,33,66,255,0);
+        gVal=255;
+        bVal=map(temp,40,60,255,0);
+    }
+    // 20-40 Blue Full, Green 0-255
+    else if (temp>=20){
+        rVal=0;
+        gVal=map(temp,20,40,0,255);
+        bVal=255;
     }
     else{
-        rVal=map(temp,0,33,255,0);
+        rVal=map(temp,0,20,255,0);
         gVal=0;
         bVal=255;
     }
