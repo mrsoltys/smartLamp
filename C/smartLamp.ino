@@ -47,14 +47,20 @@ byte lampSetting=0;
 #define NUMPIXELS      12
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, 3);
 
-TCPClient client;
-
 //////////////////////////////
 //      Time Variables      //
 //////////////////////////////
 int curTime;
 int tempTime= 32767;
 int maxTemp, curTemp;
+
+//////////////////////////////
+//    VARS FOR WEBHOOKS     //
+//////////////////////////////
+#define FORECAST_RESP   "hook-response/wuForecast"
+#define FORECAST_PUB    "wuForecast"
+#define CURRENT_RESP   "hook-response/wuCurrent"
+#define CURRENT_PUB    "wuCurrent"
 
 void setup() {
     // Button for testing (on pin D2)
@@ -65,8 +71,12 @@ void setup() {
     // Set Up Particle
     RGB.control(true);          // control onboard RGB
     RGB.brightness(0);          // turn off onboard RGB
-    Time.zone(-7);              // set timezone to MST. Note: Unsure how to handle DST
     Particle.syncTime();        // sync time (Not neccissary)
+    Time.zone(-6);
+    if(Time.isDST())
+        Time.beginDST();
+    else
+        Time.endDST();
 
     //Set Up LEDs
     pixels.begin();             // This initializes the NeoPixel library.
@@ -74,13 +84,12 @@ void setup() {
 
     //For Debugging
     Serial.begin(9600);
-    Time.zone(-6);
-    if(Time.isDST())
-        Time.beginDST()
-    else
-        Time.endDST()
 }
 
+//////////////////////////////
+//    Interrupt Function    //
+//     (called on touch)    //
+//////////////////////////////
 long debouncing_time = 300; //Debouncing Time in Milliseconds
 volatile unsigned long last_micros;
 void debounceInterrupt() {
@@ -90,6 +99,9 @@ void debounceInterrupt() {
   }
 }
 
+//////////////////////////////
+//   Increment Lamp Mode    //
+//////////////////////////////
 void lampState(){
     lampSetting++;
     if (lampSetting>3)
@@ -97,6 +109,9 @@ void lampState(){
     dispLamp();
 }
 
+//////////////////////////////
+//    Update Lamp Color     //
+//////////////////////////////
 void dispLamp(){
     if(lampSetting==1)
         dispTemp(curTemp);
@@ -108,119 +123,111 @@ void dispLamp(){
         dispTemp(-99);
 }
 
-
 void loop() {
     dispLamp();
 
     //Get the weather forecast
     curTime=(int)(Time.hour()*60)+(int)Time.minute();
-    // currently checking every 5 minutes
-    if ((curTime-tempTime)>5 || (curTime-tempTime)<0) {
+    // currently checking every 15 minutes
+    if ((curTime-tempTime)>15 || (curTime-tempTime)<0) {
        getWeather();
        last_micros = micros();
    }
 }
 
-int getCurrentMaxTemp(){
-    client.flush();
-    String rsp;
-    
-    client.print("GET /data/2.5/weather?");
-    client.print("lat=39.999&lon=-105.105");
-    client.print("&mode=xml");
-    client.print("&APPID=ab5f3051ea5ef01d114b33dadee1b99d");
-    client.print("&units=imperial"); // Change imperial to metric for celsius (delete this line for kelvin)
-    client.println(" HTTP/1.1");
-    client.println("Host: api.openweathermap.org");
-    client.println("Content-length: 0");
-    client.println();
-
-    unsigned long timeout=millis(); 
-    while ((!client.available()) && (millis()-timeout < 5000)) {}
-    if (!client.available()) {
-        //Serial.println("Server Timeout");
-        return 0;
-    }
-    while (client.available() || (millis()-timeout < 500)){
-        if(client.available()) {
-            rsp += (char)client.read();
-            timeout=millis();
-        }
-    }
-    curTemp=parseXML(&rsp, "temperature", "value").toInt();
-    // For Debugging...
-    //Serial.println("Response: ");
-    //Serial.println(rsp);
-
-    rsp=NULL;
-    client.print("GET /data/2.5/forecast/daily?");
-    client.print("lat=39.999&lon=-105.105");
-    client.print("&cnt=1"); //Note: can change if you want farther forecasts
-    client.print("&mode=xml");
-    client.print("&APPID=ab5f3051ea5ef01d114b33dadee1b99d");
-    client.print("&units=imperial"); // Change imperial to metric for celsius (delete this line for kelvin)
-    client.println(" HTTP/1.1");
-    client.println("Host: api.openweathermap.org");
-    client.println("Content-length: 0");
-    client.println();
-  
-    ///////////////////////////////////////
-    // Wait for Response, Store in Array //
-    ///////////////////////////////////////
-    timeout=millis(); 
-    while ((!client.available()) && (millis()-timeout < 5000)) {}
-    if (!client.available()) {
-        //Serial.println("Server Timeout");
-        return 0; 
-    }
-    timeout=millis();
-    while (client.available() || (millis()-timeout < 500)) {
-        if(client.available()) {
-            rsp += (char)client.read();
-            timeout=millis();
-        }
-    }
-
-    //Serial.println("Response: ");
-//    Serial.println(rsp);
-//    if(curTime>1020){
-    //NOTE: For some reason, the first forecast is garbage so we need to throw it away.
- //       rsp=rsp.substring(rsp.indexOf("</time>")); 
-//    }
-    Serial.println(rsp);
-
-    maxTemp=parseXML(&rsp, "temperature", "max").toInt();
-    curTime=(int)(Time.hour()*60)+(int)Time.minute();
-    tempTime=curTime;
-    Serial.print("tempTime: ");Serial.println(tempTime);
-    Serial.print("curTemp: ");Serial.println(curTemp);
-    Serial.print("maxTemp: ");Serial.println(maxTemp);
-    return 1;
-}
-
+//////////////////////////////
+//        GET WEATHER       //
+//////////////////////////////
 void getWeather(){
-    //Serial.print("curTime: ");Serial.println(curTime);
-    //char publishString[4];
     WiFi.on();
     WiFi.connect();
     if (waitForWifi(30000)) {
         Particle.connect();
         if (waitForCloud(true, 20000)){
-            if (client.connect("api.openweathermap.org", 80)) {
+                Particle.process();  
                 int errCount = 0;
-                while(!getCurrentMaxTemp() && errCount++ < 10){
+                while(!getForecast() && errCount++ < 10)
                     delay(1000);
-                }
-            }
-            else {
-                //Serial.println("Error Connecting to Server");
-            }
-            client.stop();
+                errCount = 0;
+                while(!getCurrent() && errCount++ < 10)
+                    delay(1000);
         }
         Particle.disconnect();
     }
     WiFi.disconnect();
     WiFi.off();
+}
+
+//////////////////////////////
+//       get Forecast       //
+//////////////////////////////
+bool forecastSuccess;
+bool getForecast() {
+  forecastSuccess  = false;
+  Particle.publish(FORECAST_PUB);
+  unsigned long wait = millis();
+  //wait for subscribe to kick in or 5 secs
+  while (!forecastSuccess && (millis()-wait < 5000))
+    //Tells the core to check for incoming messages from particle cloud
+    Particle.process();  
+  if (!forecastSuccess)
+    Serial.println("Weather update failed");
+    else
+        forecastSuccess=true;
+    return forecastSuccess;
+}//End of getWeather function
+
+//////////////////////////////
+//        get Current       //
+//////////////////////////////
+bool currentSuccess;
+bool getCurrent() {
+  currentSuccess  = false;
+  Particle.publish(CURRENT_PUB);
+  unsigned long wait = millis();
+  //wait for subscribe to kick in or 5 secs
+  while (!currentSuccess && (millis()-wait < 5000))
+    //Tells the core to check for incoming messages from particle cloud
+    Particle. process();  
+  if (!currentSuccess)
+    Serial.println("Weather update failed");
+    else
+        currentSuccess=true;
+    return currentSuccess;
+}//End of getWeather function
+
+
+//////////////////////////////
+//      currentHandler      //
+//////////////////////////////
+void currentHandler(const char *name, const char *data){
+    String str = String(data);
+    curTemp=str.toFloat();
+    currentSuccess = true;
+}
+
+//////////////////////////////
+//     forecastHandler      //
+//////////////////////////////
+void forecastHandler(const char *name, const char *data) {
+    String str = String(data);
+    char strBuffer[125] = "";
+    str.toCharArray(strBuffer, 125); // example: "\"21~99~75~0~22~98~77~20~23~97~74~10~24~94~72~10~\""
+    int forecastday1 = atoi(strtok(strBuffer, "\"~"));
+    int maxtempday1 = atoi(strtok(NULL, "~"));
+    int mintempday1 = atoi(strtok(NULL, "~"));
+    int forecastday2 = atoi(strtok(NULL, "~"));
+    int maxtempday2 = atoi(strtok(NULL, "~"));
+    int mintempday2 = atoi(strtok(NULL, "~"));
+    int forecastday3 = atoi(strtok(NULL, "~"));
+    int maxtempday3 = atoi(strtok(NULL, "~"));
+    int mintempday3 = atoi(strtok(NULL, "~"));
+
+    if (forecastday1 == Time.day())
+        maxTemp=maxtempday1;
+    else if (forecastday2 == Time.day())
+        maxTemp=maxtempday2;
+    forecastSuccess = true;
 }
 
 void fadeLEDs(){
@@ -323,36 +330,4 @@ bool waitForCloud(bool state, unsigned timeout) {
         delay(100);
     }
     return Particle.connected()==state;
-}
-
-String parseXML(String * search, String tag, String attribute) {
-    int tagStart = tagIndex(search, tag, 1);
-    int tagEnd = tagIndex(search, tag, 0);
-    if (tagStart >= 0){
-        int attributeStart = search->indexOf(attribute, tagStart);
-        if ((attributeStart >= 0) && (attributeStart < tagEnd)){ // Make sure we don't get value of another key
-            attributeStart = search->indexOf("\"", attributeStart);
-            if (attributeStart >= 0){
-                int attributeEnd = search->indexOf("\"", attributeStart + 1);
-                if (attributeEnd >= 0){
-                    return search->substring(attributeStart + 1, attributeEnd);
-                }
-            }
-        }
-    }
-    return NULL;
-}
-
-int tagIndex(String * xml, String tag, bool start){
-    String fullTag = "<";
-    if (start){
-        fullTag += tag;
-        fullTag += ' '; // Look for a space after the tag name
-    }
-    else{
-        fullTag += '/';
-        fullTag += tag;
-        fullTag += '>';
-    }
-    return xml->indexOf(fullTag);
 }
