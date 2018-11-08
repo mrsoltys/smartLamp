@@ -59,8 +59,8 @@ int maxTemp, curTemp;
 //////////////////////////////
 #define FORECAST_RESP   "hook-response/wuForecast"
 #define FORECAST_PUB    "wuForecast"
-#define CURRENT_RESP   "hook-response/wuCurrent"
-#define CURRENT_PUB    "wuCurrent"
+#define CURRENT_RESP   "hook-response/lafayetteOpenWeather"
+#define CURRENT_PUB    "lafayetteOpenWeather"
 
 void setup() {
     // Button for testing (on pin D2)
