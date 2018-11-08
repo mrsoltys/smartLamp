@@ -57,8 +57,8 @@ int maxTemp, curTemp;
 //////////////////////////////
 //    VARS FOR WEBHOOKS     //
 //////////////////////////////
-#define FORECAST_RESP   "hook-response/wuForecast"
-#define FORECAST_PUB    "wuForecast"
+#define FORECAST_RESP   "hook-response/lafayetteOpenWeatherForecast"
+#define FORECAST_PUB    "lafayetteOpenWeatherForecast"
 #define CURRENT_RESP   "hook-response/lafayetteOpenWeather"
 #define CURRENT_PUB    "lafayetteOpenWeather"
 
@@ -219,13 +219,10 @@ void forecastHandler(const char *name, const char *data) {
     int forecastday2 = atoi(strtok(NULL, "~"));
     int maxtempday2 = atoi(strtok(NULL, "~"));
     int mintempday2 = atoi(strtok(NULL, "~"));
-    int forecastday3 = atoi(strtok(NULL, "~"));
-    int maxtempday3 = atoi(strtok(NULL, "~"));
-    int mintempday3 = atoi(strtok(NULL, "~"));
 
-    if (forecastday1 == Time.day())
+    if (Time.day(forecastday1) == Time.day())
         maxTemp=maxtempday1;
-    else if (forecastday2 == Time.day())
+    else if (Time.day(forecastday2) == Time.day())
         maxTemp=maxtempday2;
     forecastSuccess = true;
 }
@@ -238,9 +235,7 @@ void fadeLEDs(){
 }
 
 void lampMode(){
-    rVal=255;
-    gVal=240;
-    bVal=215;
+    rVal=255; gVal=240; bVal=215;
     fadeLEDs();
 }
 
@@ -248,9 +243,7 @@ void dispTemp(int temp){
     // If I send this function -99, it means turn off the LEDs
     if (temp<=-99){
        // pixels.setPixelColor(i, pixels.Color(0,150,0)); // Moderately bright green color.
-        rVal=0;
-        gVal=0;
-        bVal=0;
+        rVal=0; gVal=0; bVal=0;
         fadeLEDs();
         return;
     }
@@ -267,7 +260,7 @@ void dispTemp(int temp){
     //20  - Blue         0,   0, 255
     //    - Indigo
     //0   - Violet     255,   0, 255
-    // 80-100 Red Full, Green 255-0
+
     if (temp>=80){
         rVal=255;
         gVal=map(temp,80,100,255,0);
