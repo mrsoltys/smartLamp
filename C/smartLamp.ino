@@ -50,17 +50,17 @@ Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, 3);
 //////////////////////////////
 //      Time Variables      //
 //////////////////////////////
-int curTime;
-int tempTime= 32767;
+unsigned int curTime=0;
+unsigned int tempTime=0;
 int maxTemp, curTemp;
 
 //////////////////////////////
 //    VARS FOR WEBHOOKS     //
 //////////////////////////////
-#define FORECAST_RESP   "hook-response/lafayetteOpenWeatherForecast"
-#define FORECAST_PUB    "lafayetteOpenWeatherForecast"
-#define CURRENT_RESP   "hook-response/lafayetteOpenWeather"
-#define CURRENT_PUB    "lafayetteOpenWeather"
+#define FORECAST_RESP  "hook-response/openWeatherForecast"
+#define FORECAST_PUB   "openWeatherForecast"
+#define CURRENT_RESP   "hook-response/openWeatherByCity"
+#define CURRENT_PUB    "openWeatherByCity"
 
 void setup() {
     // Button for testing (on pin D2)
@@ -77,6 +77,10 @@ void setup() {
         Time.beginDST();
     else
         Time.endDST();
+
+    //subscribe to weather updates
+    Particle.subscribe(CURRENT_RESP, currentHandler, MY_DEVICES);
+    Particle.subscribe(FORECAST_RESP, forecastHandler, MY_DEVICES);
 
     //Set Up LEDs
     pixels.begin();             // This initializes the NeoPixel library.
@@ -126,36 +130,13 @@ void dispLamp(){
 void loop() {
     dispLamp();
 
-    //Get the weather forecast
-    curTime=(int)(Time.hour()*60)+(int)Time.minute();
-    // currently checking every 15 minutes
-    if ((curTime-tempTime)>15 || (curTime-tempTime)<0) {
-       getWeather();
-       last_micros = micros();
-   }
-}
+    //Get the weather forecast every 3 hours
+    if((Time.now()-tempTime)>=10800)
+        getForecast(); 
 
-//////////////////////////////
-//        GET WEATHER       //
-//////////////////////////////
-void getWeather(){
-    WiFi.on();
-    WiFi.connect();
-    if (waitForWifi(30000)) {
-        Particle.connect();
-        if (waitForCloud(true, 20000)){
-                Particle.process();  
-                int errCount = 0;
-                while(!getForecast() && errCount++ < 10)
-                    delay(1000);
-                errCount = 0;
-                while(!getCurrent() && errCount++ < 10)
-                    delay(1000);
-        }
-        Particle.disconnect();
-    }
-    WiFi.disconnect();
-    WiFi.off();
+    //Update Current Temp every 5 minutes
+    if((Time.now()-curTime)>=300)
+        getCurrent(); 
 }
 
 //////////////////////////////
@@ -164,16 +145,26 @@ void getWeather(){
 bool forecastSuccess;
 bool getForecast() {
   forecastSuccess  = false;
-  Particle.publish(FORECAST_PUB);
-  unsigned long wait = millis();
-  //wait for subscribe to kick in or 5 secs
-  while (!forecastSuccess && (millis()-wait < 5000))
-    //Tells the core to check for incoming messages from particle cloud
-    Particle.process();  
-  if (!forecastSuccess)
-    Serial.println("Weather update failed");
-    else
-        forecastSuccess=true;
+    WiFi.on();
+    WiFi.connect();
+    if (waitForWifi(30000)) {
+        Particle.connect();
+        if (waitForCloud(true, 20000)){
+                Particle.process();  
+                int errCount = 0;
+                while(!forecastSuccess && errCount++ < 5){
+                    Particle.publish(FORECAST_PUB,"{\"id\":5574991,\"cnt\":1}");
+                    unsigned long wait = millis();
+                    //wait for subscribe to kick in or 5 secs
+                    while (!forecastSuccess && (millis()-wait < 5000))
+                        //Tells the core to check for incoming messages from particle cloud
+                         Particle. process();  
+                }
+        }
+        Particle.disconnect();
+    }
+    WiFi.disconnect();
+    WiFi.off();
     return forecastSuccess;
 }//End of getWeather function
 
@@ -182,18 +173,28 @@ bool getForecast() {
 //////////////////////////////
 bool currentSuccess;
 bool getCurrent() {
-  currentSuccess  = false;
-  Particle.publish(CURRENT_PUB);
-  unsigned long wait = millis();
-  //wait for subscribe to kick in or 5 secs
-  while (!currentSuccess && (millis()-wait < 5000))
-    //Tells the core to check for incoming messages from particle cloud
-    Particle. process();  
-  if (!currentSuccess)
-    Serial.println("Weather update failed");
-    else
-        currentSuccess=true;
-    return currentSuccess;
+    currentSuccess  = false;
+    WiFi.on();
+    WiFi.connect();
+    if (waitForWifi(30000)) {
+        Particle.connect();
+        if (waitForCloud(true, 20000)){
+                Particle.process();  
+                int errCount = 0;
+                while(!currentSuccess && errCount++ < 5){
+                    Particle.publish(CURRENT_PUB,"{\"id\":5574991}");
+                    unsigned long wait = millis();
+                    //wait for subscribe to kick in or 5 secs
+                    while (!currentSuccess && (millis()-wait < 5000))
+                        //Tells the core to check for incoming messages from particle cloud
+                         Particle. process();  
+                }
+        }
+        Particle.disconnect();
+    }
+    WiFi.disconnect();
+    WiFi.off();
+  return currentSuccess;
 }//End of getWeather function
 
 
@@ -204,6 +205,7 @@ void currentHandler(const char *name, const char *data){
     String str = String(data);
     curTemp=str.toFloat();
     currentSuccess = true;
+    curTime=Time.now();
 }
 
 //////////////////////////////
@@ -212,19 +214,12 @@ void currentHandler(const char *name, const char *data){
 void forecastHandler(const char *name, const char *data) {
     String str = String(data);
     char strBuffer[125] = "";
-    str.toCharArray(strBuffer, 125); // example: "\"21~99~75~0~22~98~77~20~23~97~74~10~24~94~72~10~\""
+    str.toCharArray(strBuffer, 125); // example: "1554231600~54.19~43.47~
     int forecastday1 = atoi(strtok(strBuffer, "\"~"));
-    int maxtempday1 = atoi(strtok(NULL, "~"));
-    int mintempday1 = atoi(strtok(NULL, "~"));
-    int forecastday2 = atoi(strtok(NULL, "~"));
-    int maxtempday2 = atoi(strtok(NULL, "~"));
-    int mintempday2 = atoi(strtok(NULL, "~"));
-
-    if (Time.day(forecastday1) == Time.day())
-        maxTemp=maxtempday1;
-    else if (Time.day(forecastday2) == Time.day())
-        maxTemp=maxtempday2;
+    maxTemp = atoi(strtok(NULL, "~"));
+    int tempMin = atoi(strtok(NULL, "~"));
     forecastSuccess = true;
+    tempTime=Time.now();
 }
 
 void fadeLEDs(){
