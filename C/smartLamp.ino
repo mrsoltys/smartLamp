@@ -244,45 +244,42 @@ void dispTemp(int temp){
     }
     
     // constrain temp between 0 and 100 F
-    temp=constrain(temp, 0, 100);
+    temp=constrain(temp, 20, 90);
     
     // Map Temp to Correct Temp.
     //100 - Red        255,   0,   0
-    //    - Orange
-    //80  - Yellow     255, 255,   0
+    //    - orange
+    //70  - Yellow     255, 255,   0
     //60  - Green        0, 255,   0
-    //40                 0, 255, 255
-    //20  - Blue         0,   0, 255
-    //    - Indigo
-    //0   - Violet     255,   0, 255
+    //50  - Blue Green   0, 255, 255
+    //40  - Blue         0,   0, 255
+    //    - indigo
+    //20   - Violet     255,   0, 255
 
-    if (temp>=80){
+    if (temp>=70){
         rVal=255;
-        gVal=map(temp,80,100,255,0);
+        gVal=map(temp,70,90,255,0);
         bVal=0;
     }
-    // 60-80 Green Full, Red 0-255
     else if (temp>=60){
-        rVal=map(temp,60,80,0,255);
+        rVal=map(temp,60,70,0,255);
         gVal=255;
         bVal=0;
     }
-    // 40-60 Green Full, Blue 255-0
+    else if (temp>=50){
+        rVal=0;
+        gVal=255;
+        bVal=map(temp,50,60,255,0);
+    }
     else if (temp>=40){
         rVal=0;
-        gVal=255;
-        bVal=map(temp,40,60,255,0);
-    }
-    // 20-40 Blue Full, Green 0-255
-    else if (temp>=20){
-        rVal=0;
-        gVal=map(temp,20,40,0,255);
+        gVal=map(temp,40,50,0,255);
         bVal=255;
     }
     else{
-        rVal=map(temp,0,20,255,0);
-        gVal=0;
+        rVal=map(temp,20,40,255,0);
         bVal=255;
+        gVal=0;
     }
     fadeLEDs();
 }
