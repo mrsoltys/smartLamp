@@ -34,9 +34,9 @@ SYSTEM_MODE(MANUAL);
 //////////////////////////////
 //    RGB LED VALUES        //
 //////////////////////////////
-byte rVal=0;
-byte gVal=0;
-byte bVal=0;
+volatile byte rVal=0;
+volatile byte gVal=0;
+volatile byte bVal=0;
 
 byte lampSetting=0;
 
@@ -151,15 +151,12 @@ bool getForecast() {
         Particle.connect();
         if (waitForCloud(true, 20000)){
                 Particle.process();  
-                int errCount = 0;
-                while(!forecastSuccess && errCount++ < 5){
-                    Particle.publish(FORECAST_PUB,"{\"id\":5574991,\"cnt\":1}");
-                    unsigned long wait = millis();
-                    //wait for subscribe to kick in or 5 secs
-                    while (!forecastSuccess && (millis()-wait < 5000))
-                        //Tells the core to check for incoming messages from particle cloud
-                         Particle. process();  
-                }
+                Particle.publish(FORECAST_PUB,"{\"id\":5574991,\"cnt\":1}");
+                unsigned long wait = millis();
+                //wait for subscribe to kick in or 9 secs
+                while (!forecastSuccess && (millis()-wait < 9000))
+                    //Tells the core to check for incoming messages from particle cloud
+                     Particle. process();  
         }
         Particle.disconnect();
     }
@@ -180,15 +177,12 @@ bool getCurrent() {
         Particle.connect();
         if (waitForCloud(true, 20000)){
                 Particle.process();  
-                int errCount = 0;
-                while(!currentSuccess && errCount++ < 5){
-                    Particle.publish(CURRENT_PUB,"{\"id\":5574991}");
-                    unsigned long wait = millis();
-                    //wait for subscribe to kick in or 5 secs
-                    while (!currentSuccess && (millis()-wait < 5000))
-                        //Tells the core to check for incoming messages from particle cloud
-                         Particle. process();  
-                }
+                Particle.publish(CURRENT_PUB,"{\"id\":5574991}");
+                unsigned long wait = millis();
+                //wait for subscribe to kick in or 5 secs
+                while (!currentSuccess && (millis()-wait < 9000))
+                    //Tells the core to check for incoming messages from particle cloud
+                     Particle. process();  
         }
         Particle.disconnect();
     }
@@ -204,8 +198,8 @@ bool getCurrent() {
 void currentHandler(const char *name, const char *data){
     String str = String(data);
     curTemp=str.toFloat();
-    currentSuccess = true;
     curTime=Time.now();
+    currentSuccess = true;
 }
 
 //////////////////////////////
@@ -218,8 +212,8 @@ void forecastHandler(const char *name, const char *data) {
     int forecastday1 = atoi(strtok(strBuffer, "\"~"));
     maxTemp = atoi(strtok(NULL, "~"));
     int tempMin = atoi(strtok(NULL, "~"));
-    forecastSuccess = true;
     tempTime=Time.now();
+    forecastSuccess = true;
 }
 
 void fadeLEDs(){
@@ -237,17 +231,16 @@ void lampMode(){
 void dispTemp(int temp){
     // If I send this function -99, it means turn off the LEDs
     if (temp<=-99){
-       // pixels.setPixelColor(i, pixels.Color(0,150,0)); // Moderately bright green color.
         rVal=0; gVal=0; bVal=0;
         fadeLEDs();
         return;
     }
     
-    // constrain temp between 0 and 100 F
+    // constrain temp between 20 and 90 F
     temp=constrain(temp, 20, 90);
     
     // Map Temp to Correct Temp.
-    //100 - Red        255,   0,   0
+    //90 - Red        255,   0,   0
     //    - orange
     //70  - Yellow     255, 255,   0
     //60  - Green        0, 255,   0
