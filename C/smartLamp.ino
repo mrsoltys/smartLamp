@@ -94,12 +94,12 @@ void setup() {
 //    Interrupt Function    //
 //     (called on touch)    //
 //////////////////////////////
-long debouncing_time = 300; //Debouncing Time in Milliseconds
+volatile unsigned long debouncing_time = 300; //Debouncing Time in Milliseconds
 volatile unsigned long last_micros;
 void debounceInterrupt() {
-    if((long)(micros() - last_micros) >= debouncing_time * 1000) {
-        lampState();
+    if(((long)micros() - last_micros) >= debouncing_time * 1000 || micros()<last_micros) {
         last_micros = micros();
+        lampState();
   }
 }
 
